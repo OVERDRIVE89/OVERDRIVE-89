@@ -59,25 +59,16 @@ for (const k of ['left', 'right', 'gas', 'brk']) {
 }
 
 // ---------- เกม ----------
-const W = 1600, H = 900, K = 1.667, ROAD = 110;   // มองเห็นสนามทั้งหมดในจอ ไม่ซูมตามรถ
-// จุดควบคุมของสนาม (วาดในพื้นที่ 960x540 แล้วขยาย) มีโค้งหักและเลี้ยวต่อเนื่องหลายช่วง
-const CTRL = [[480,470],[700,475],[860,440],[900,330],[800,250],[680,300],[600,230],[700,130],
-  [800,70],[540,70],[420,150],[300,80],[140,70],[70,180],[160,270],[300,320],[330,430]]
-  .map(([x, y]) => ({ x: x * K, y: y * K }));
-
-function buildTrack(pts, steps = 14) {            // Catmull-Rom แบบวงปิด
-  const out = [], n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i + n - 1) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
-    for (let j = 0; j < steps; j++) {
-      const t = j / steps, t2 = t * t, t3 = t2 * t;
-      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      out.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
-    }
-  }
-  return out;
+const W = 1600, H = 900, ROAD = 190;              // ถนนกว้างขึ้น เห็นสนามทั้งหมดในจอ
+// สนามสร้างจากสมการโค้งต่อเนื่อง จึงไม่มีโค้งหักแหลม: โค้งนุ่ม รอบยาว ถนนไม่ทับกัน
+const SH = { a: 644.4, a3: 30.7, p3: 0.523, a2: 4.76, p2: 4.443, b: 347.7, b3: 43.7, q3: 1.906, b2: 49.75, q2: 3.123 };
+const N = 240, TRACK = [];
+for (let i = 0; i < N; i++) {
+  const u = 2 * Math.PI * i / N;
+  const A = SH.a + SH.a3 * Math.cos(3 * u + SH.p3) + SH.a2 * Math.cos(2 * u + SH.p2);
+  const B = SH.b + SH.b3 * Math.sin(3 * u + SH.q3) + SH.b2 * Math.cos(2 * u + SH.q2);
+  TRACK.push({ x: 800 + A * Math.sin(u), y: 450 + B * Math.cos(u) });
 }
-const TRACK = buildTrack(CTRL), N = TRACK.length;
 
 class Race extends Phaser.Scene {
   create() {
@@ -95,17 +86,27 @@ class Race extends Phaser.Scene {
 
     this.car = this.add.rectangle(a.x + Math.cos(ang) * 40, a.y + Math.sin(ang) * 40, 44, 22, 0xf9c80e)
       .setStrokeStyle(3, 0xff2a6d).setRotation(ang);
-    this.v = 0; this.idx = 0; this.laps = 0; this.lapStart = 0; this.half = false;
+    this.v = 0; this.steer = 0; this.idx = 0; this.laps = 0; this.lapStart = 0; this.half = false;
     this.kb = this.input.keyboard.createCursorKeys();
     refreshHud();
   }
   update(_, dt) {
-    const s = dt / 1000, k = this.kb, top = 330 + save.engine * 45;
+    const s = Math.min(dt, 50) / 1000, k = this.kb, top = 330 + save.engine * 45;
     const gas = input.gas || k.up.isDown, brk = input.brk || k.down.isDown;
-    const steer = (input.right || k.right.isDown ? 1 : 0) - (input.left || k.left.isDown ? 1 : 0);
-    this.v += (gas ? 230 + save.engine * 30 : brk ? -360 : -120) * s;
+    const target = (input.right || k.right.isDown ? 1 : 0) - (input.left || k.left.isDown ? 1 : 0);
+
+    // พวงมาลัยค่อยๆ หมุนเข้า-ออก ไม่กระชาก (ปล่อยแล้วคืนตรงเร็วกว่าตอนหมุนเข้า)
+    const rate = target === 0 ? 9 : 5;
+    this.steer += (target - this.steer) * Math.min(1, rate * s);
+
+    // เร่งแบบนุ่ม: ใกล้ความเร็วสูงสุดจะเร่งช้าลง
+    const accel = (230 + save.engine * 30) * (1 - 0.5 * this.v / top);
+    this.v += (gas ? accel : brk ? -360 : -110) * s;
     this.v = Phaser.Math.Clamp(this.v, 0, top);
-    this.car.rotation += steer * 2.4 * s * Math.min(1, this.v / 180);
+
+    // เลี้ยวได้มากตอนความเร็วกลาง เลี้ยวน้อยลงตอนเร็วมาก (เหมือนรถจริง)
+    const grip = Math.min(1, this.v / 120) * (1 - 0.4 * this.v / top);
+    this.car.rotation += this.steer * 2.5 * grip * s;
     this.car.x += Math.cos(this.car.rotation) * this.v * s;
     this.car.y += Math.sin(this.car.rotation) * this.v * s;
 
@@ -115,7 +116,7 @@ class Race extends Phaser.Scene {
       const d = (TRACK[i].x - this.car.x) ** 2 + (TRACK[i].y - this.car.y) ** 2;
       if (d < bd) { bd = d; best = i; }
     }
-    if (Math.sqrt(bd) > ROAD / 2) this.v *= 0.96;      // ออกนอกถนน = ช้าลง
+    if (Math.sqrt(bd) > ROAD / 2) this.v = Math.max(this.v * Math.exp(-1.6 * s), Math.min(this.v, 90));  // นอกถนน = ช้าลงแต่ไม่ค้าง
 
     const prev = this.idx; this.idx = best;
     if (best > N * 0.4 && best < N * 0.6) this.half = true;           // ผ่านครึ่งทางแล้ว
@@ -128,7 +129,7 @@ class Race extends Phaser.Scene {
     if (this.laps > 0) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
   }
   finishLap(sec) {
-    if (sec < 10) return;
+    if (sec < 5) return;
     save.exp += Math.max(20, Math.round(200 - sec * 2)); save.coins += 40;
     while (save.exp >= expNeeded(save.level)) { save.exp -= expNeeded(save.level); save.level++; }
     persist(); refreshHud();
