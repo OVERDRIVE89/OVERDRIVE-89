@@ -19,16 +19,21 @@
   #warn.hot{color:#ff2a6d;text-shadow:0 0 12px #ff2a6d}
   #state{position:fixed;top:calc(78px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
     font:bold 16px monospace;color:#05d9e8;text-shadow:0 0 10px #05d9e8;pointer-events:none}
-  #mm{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0));
-    width:200px;height:120px;z-index:3;border:2px solid #05d9e8;border-radius:10px;background:rgba(13,2,33,.7);pointer-events:none}
+  #mm{position:fixed;left:12px;top:calc(40px + env(safe-area-inset-top,0));width:150px;height:90px;z-index:3;
+    border:2px solid rgba(5,217,232,.6);border-radius:10px;background:rgba(13,2,33,.55);pointer-events:none}
   .pad{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;gap:10px;z-index:3}
   #l{left:14px}#r{right:14px}
   .btn{width:72px;height:72px;border-radius:50%;background:rgba(38,20,71,.75);border:3px solid #05d9e8;
     color:#05d9e8;font:bold 24px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
   .btn.on{background:#05d9e8;color:#0d0221}
-  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:14px}#gas.on{background:#ff2a6d;color:#0d0221}
-  #brk,#drift{font-size:14px}
+  #r{right:14px;width:236px;height:170px;display:grid;grid-template-columns:2fr 3fr;grid-template-rows:1fr 2fr;gap:6px;
+    touch-action:none}
+  .zone{border:3px solid #05d9e8;border-radius:18px;background:rgba(38,20,71,.7);color:#05d9e8;
+    font:bold 15px monospace;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .zone.on{background:#05d9e8;color:#0d0221}
+  #brk{grid-column:1 / span 2}
   #drift{border-color:#f9c80e;color:#f9c80e}#drift.on{background:#f9c80e;color:#0d0221}
+  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:20px}#gas.on{background:#ff2a6d;color:#0d0221}
 </style>
 </head>
 <body>
@@ -39,7 +44,7 @@
 <div id="state"></div>
 <canvas id="mm" width="400" height="240"></canvas>
 <div class="pad" id="l"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
-<div class="pad" id="r"><div class="btn" id="drift">DRIFT</div><div class="btn" id="gas">GAS</div><div class="btn" id="brk">BRK</div></div>
+<div class="pad" id="r"><div class="zone" id="brk">BRAKE ▲</div><div class="zone" id="drift">◀ DRIFT</div><div class="zone" id="gas">GAS</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
 <script>
@@ -62,12 +67,39 @@ $('up').addEventListener('pointerdown', () => {
 
 // ---------- ปุ่มสัมผัส (รองรับหลายนิ้วพร้อมกัน) ----------
 const input = { left: false, right: false, gas: false, brk: false, drift: false };
-for (const k of ['left', 'right', 'gas', 'brk', 'drift']) {
+for (const k of ['left', 'right']) {
   const el = $(k);
   const set = v => e => { e.preventDefault(); input[k] = v; el.classList.toggle('on', v); };
   el.addEventListener('pointerdown', set(true));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, set(false)));
 }
+
+// แผ่นขวา: วางนิ้วที่ GAS ค้างไว้ แล้วเลื่อนนิ้วไปซ้าย = ดริฟต์ (เร่งต่อ) / เลื่อนขึ้น = เบรก
+// รองรับนิ้วที่สองด้วย
+const pad = $('r'), ptrs = new Map();
+function zoneOf(e) {
+  const r = pad.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  if (y < 0.34) return 'brk';
+  return x < 0.4 ? 'drift' : 'gas';
+}
+function applyPad() {
+  const z = [...ptrs.values()];
+  input.brk = z.includes('brk');
+  input.drift = z.includes('drift') && !input.brk;
+  input.gas = (z.includes('gas') || z.includes('drift')) && !input.brk;
+  $('brk').classList.toggle('on', input.brk);
+  $('drift').classList.toggle('on', input.drift);
+  $('gas').classList.toggle('on', input.gas);
+}
+pad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { pad.setPointerCapture(e.pointerId); } catch (_) {}
+  ptrs.set(e.pointerId, zoneOf(e)); applyPad();
+});
+pad.addEventListener('pointermove', e => { if (ptrs.has(e.pointerId)) { ptrs.set(e.pointerId, zoneOf(e)); applyPad(); } });
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t =>
+  pad.addEventListener(t, e => { ptrs.delete(e.pointerId); applyPad(); }));
 
 // ---------- สนามยาว (สร้างจากสมการโค้งต่อเนื่อง: โค้งนุ่ม ไม่ทับกัน) ----------
 const WORLD_W = 7000, WORLD_H = 4400, W = 1600, H = 900, ROAD = 190, N = 600;
