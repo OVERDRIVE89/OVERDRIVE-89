@@ -35,15 +35,15 @@
   .btn{width:54px;height:54px;border-radius:50%;background:rgba(38,20,71,.4);border:2px solid #05d9e8;
     color:#05d9e8;font:bold 18px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
   .btn.on{background:#05d9e8;color:#0d0221}
-  #r{width:150px;height:104px;display:grid;grid-template-columns:2fr 3fr;grid-template-rows:1fr 2fr;gap:5px;
-    touch-action:none}
-  .zone{border:2px solid #05d9e8;border-radius:12px;background:rgba(38,20,71,.4);color:#05d9e8;
-    font:bold 11px monospace;display:flex;align-items:center;justify-content:center;pointer-events:none}
-  .zone.on{background:#05d9e8;color:#0d0221}
+  #r{width:270px;height:170px;display:grid;grid-template-columns:2fr 3fr;grid-template-rows:1fr 2fr;gap:0;touch-action:none}
+  .zone{border:none;border-radius:0;background:transparent;color:transparent;font-size:0;pointer-events:none}
+  #l{width:270px;height:170px;display:grid;grid-template-columns:1fr 1fr;gap:0;touch-action:none}
+  #left,#right{width:auto;height:auto;border:none;border-radius:0;background:transparent;color:transparent;font-size:0;pointer-events:none}
+  #left.on,#right.on{background:rgba(5,217,232,.12);color:transparent}
   #brk{grid-column:1 / span 2}
-  #mm{width:130px;height:78px}
-  #drift{border-color:#f9c80e;color:#f9c80e}#drift.on{background:#f9c80e;color:#0d0221}
-  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:15px}#gas.on{background:#ff2a6d;color:#0d0221}
+  #brk.on{background:rgba(5,217,232,.12)}
+  #drift.on{background:rgba(249,200,14,.12)}
+  #gas.on{background:rgba(255,42,109,.12)}
 </style>
 </head>
 <body>
@@ -95,12 +95,24 @@ $('fs').addEventListener('pointerdown', e => {
 
 // ---------- ปุ่มสัมผัส (รองรับหลายนิ้วพร้อมกัน) ----------
 const input = { left: false, right: false, gas: false, brk: false, drift: false };
-for (const k of ['left', 'right']) {
-  const el = $(k);
-  const set = v => e => { e.preventDefault(); input[k] = v; el.classList.toggle('on', v); };
-  el.addEventListener('pointerdown', set(true));
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, set(false)));
+// แผ่นซ้าย: พื้นที่เลี้ยวใหญ่และโปร่งใส (ไม่เห็นปุ่ม) แตะครึ่งซ้าย = เลี้ยวซ้าย / ครึ่งขวา = เลี้ยวขวา เลื่อนนิ้วข้ามกันได้
+const lpad = $('l'), lptrs = new Map();
+function applyL() {
+  const z = [...lptrs.values()];
+  input.left = z.includes('left') && !z.includes('right');
+  input.right = z.includes('right') && !z.includes('left');
+  $('left').classList.toggle('on', z.includes('left'));
+  $('right').classList.toggle('on', z.includes('right'));
 }
+const sideOf = e => { const r = lpad.getBoundingClientRect(); return (e.clientX - r.left) / r.width < 0.5 ? 'left' : 'right'; };
+lpad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { lpad.setPointerCapture(e.pointerId); } catch (_) {}
+  lptrs.set(e.pointerId, sideOf(e)); applyL();
+});
+lpad.addEventListener('pointermove', e => { if (lptrs.has(e.pointerId)) { lptrs.set(e.pointerId, sideOf(e)); applyL(); } });
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t =>
+  lpad.addEventListener(t, e => { lptrs.delete(e.pointerId); applyL(); }));
 
 // แผ่นขวา: วางนิ้วที่ GAS ค้างไว้ แล้วเลื่อนนิ้วไปซ้าย = ดริฟต์ (เร่งต่อ) / เลื่อนขึ้น = เบรก
 // รองรับนิ้วที่สองด้วย
