@@ -27,8 +27,8 @@
 <div id="game"></div>
 <div id="hud">LV <b id="lv">1</b> EXP <b id="exp">0</b> ¢ <b id="coin">0</b> LAP <b id="lap">-</b>
   <button id="up">เครื่องยนต์ Lv1 (50¢)</button></div>
-<div class="pad" id="l"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
-<div class="pad" id="r"><div class="btn" id="brk">BRK</div><div class="btn" id="gas">GAS</div></div>
+<div class="pad" id="l"><div class="btn" id="gas">GAS</div><div class="btn" id="brk">BRK</div></div>
+<div class="pad" id="r"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
 <script>
@@ -59,33 +59,48 @@ for (const k of ['left', 'right', 'gas', 'brk']) {
 }
 
 // ---------- เกม ----------
-const W = 960, H = 540, CX = W / 2, CY = H / 2 + 10, RX = 360, RY = 175, ROAD = 80;
+const W = 960, H = 540;                       // ขนาดหน้าจอเกม
+const WORLD_W = 3000, WORLD_H = 1900;           // ขนาดโลกทั้งหมด
+const CX = WORLD_W / 2, CY = WORLD_H / 2;
+const RX = 1100, RY = 600, ROAD = 190;          // สนามรูปไข่ใหญ่ ถนนกว้าง
 
 class Race extends Phaser.Scene {
   create() {
+    this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     const g = this.add.graphics();
-    g.fillStyle(0x0d0221).fillRect(0, 0, W, H);
+    g.fillStyle(0x0d0221).fillRect(0, 0, WORLD_W, WORLD_H);
+    // ตารางพื้น ช่วยให้เห็นว่ารถกำลังเคลื่อนที่
+    g.lineStyle(1, 0x1b0d3a);
+    for (let x = 0; x <= WORLD_W; x += 100) g.lineBetween(x, 0, x, WORLD_H);
+    for (let y = 0; y <= WORLD_H; y += 100) g.lineBetween(0, y, WORLD_W, y);
     g.lineStyle(ROAD, 0x261447).strokeEllipse(CX, CY, RX * 2, RY * 2);
-    g.lineStyle(3, 0x05d9e8).strokeEllipse(CX, CY, (RX + ROAD / 2) * 2, (RY + ROAD / 2) * 2);
-    g.lineStyle(3, 0xff2a6d).strokeEllipse(CX, CY, (RX - ROAD / 2) * 2, (RY - ROAD / 2) * 2);
-    g.lineStyle(4, 0xffffff).lineBetween(CX, CY + RY - ROAD / 2, CX, CY + RY + ROAD / 2);
-    this.car = this.add.rectangle(CX + 20, CY + RY, 28, 14, 0xf9c80e).setStrokeStyle(2, 0xff2a6d);
+    g.lineStyle(5, 0x05d9e8).strokeEllipse(CX, CY, (RX + ROAD / 2) * 2, (RY + ROAD / 2) * 2);
+    g.lineStyle(5, 0xff2a6d).strokeEllipse(CX, CY, (RX - ROAD / 2) * 2, (RY - ROAD / 2) * 2);
+    g.lineStyle(6, 0xffffff).lineBetween(CX, CY + RY - ROAD / 2, CX, CY + RY + ROAD / 2);
+
+    this.car = this.add.rectangle(CX + 40, CY + RY, 40, 20, 0xf9c80e).setStrokeStyle(3, 0xff2a6d);
+    this.cameras.main.startFollow(this.car, true, 0.12, 0.12);
     this.v = 0; this.prevX = this.car.x; this.laps = 0; this.lapStart = 0; this.checkpoint = false;
     this.kb = this.input.keyboard.createCursorKeys();
     refreshHud();
   }
   update(_, dt) {
-    const s = dt / 1000, k = this.kb, top = 260 + save.engine * 30;
+    const s = dt / 1000, k = this.kb, top = 300 + save.engine * 40;
     const gas = input.gas || k.up.isDown, brk = input.brk || k.down.isDown;
     const steer = (input.right || k.right.isDown ? 1 : 0) - (input.left || k.left.isDown ? 1 : 0);
-    this.v += (gas ? 200 + save.engine * 25 : brk ? -300 : -120) * s;
+    this.v += (gas ? 220 + save.engine * 30 : brk ? -340 : -120) * s;
     this.v = Phaser.Math.Clamp(this.v, 0, top);
-    this.car.rotation += steer * 2.8 * s * Math.min(1, this.v / 150);
+    this.car.rotation += steer * 2.4 * s * Math.min(1, this.v / 180);
     this.car.x += Math.cos(this.car.rotation) * this.v * s;
     this.car.y += Math.sin(this.car.rotation) * this.v * s;
-    const d = Math.hypot((this.car.x - CX) / RX, (this.car.y - CY) / RY);
-    if (Math.abs(d - 1) * RY > ROAD / 2) this.v *= 0.96;
-    if (this.car.y < CY - RY + 20) this.checkpoint = true;
+
+    // ระยะจากเส้นกลางถนน (ประมาณ) ออกนอกถนน = ช้าลง
+    const dx = this.car.x - CX, dy = this.car.y - CY;
+    const f = Math.hypot(dx / RX, dy / RY) || 0.0001;
+    const grad = Math.hypot(dx / (RX * RX), dy / (RY * RY)) / f || 0.0001;
+    if (Math.abs(f - 1) / grad > ROAD / 2) this.v *= 0.96;
+
+    if (this.car.y < CY - RY + 30) this.checkpoint = true;
     if (this.checkpoint && this.prevX < CX && this.car.x >= CX && this.car.y > CY) {
       if (this.laps > 0) this.finishLap((this.time.now - this.lapStart) / 1000);
       this.laps++; this.lapStart = this.time.now; this.checkpoint = false;
@@ -94,8 +109,8 @@ class Race extends Phaser.Scene {
     if (this.laps > 0) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
   }
   finishLap(sec) {
-    if (sec < 5) return;
-    save.exp += Math.max(10, Math.round(60 - sec)); save.coins += 20;
+    if (sec < 10) return;
+    save.exp += Math.max(20, Math.round(150 - sec * 2)); save.coins += 40;
     while (save.exp >= expNeeded(save.level)) { save.exp -= expNeeded(save.level); save.level++; }
     persist(); refreshHud();
   }
