@@ -14,21 +14,32 @@
   #hud b{color:#ff2a6d;text-shadow:0 0 8px #ff2a6d}
   #up{margin-left:auto;pointer-events:auto;background:#261447;color:#f9c80e;border:2px solid #f9c80e;
     border-radius:8px;padding:8px 12px;font:bold 13px monospace}
-  .pad{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;gap:12px;z-index:3}
+  #warn{position:fixed;top:calc(46px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
+    font:bold 20px monospace;color:#f9c80e;text-shadow:0 0 10px #f9c80e;pointer-events:none;white-space:nowrap}
+  #warn.hot{color:#ff2a6d;text-shadow:0 0 12px #ff2a6d}
+  #state{position:fixed;top:calc(78px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
+    font:bold 16px monospace;color:#05d9e8;text-shadow:0 0 10px #05d9e8;pointer-events:none}
+  #mm{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom,0));
+    width:200px;height:120px;z-index:3;border:2px solid #05d9e8;border-radius:10px;background:rgba(13,2,33,.7);pointer-events:none}
+  .pad{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;gap:10px;z-index:3}
   #l{left:14px}#r{right:14px}
-  .btn{width:76px;height:76px;border-radius:50%;background:rgba(38,20,71,.75);border:3px solid #05d9e8;
-    color:#05d9e8;font:bold 26px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
+  .btn{width:72px;height:72px;border-radius:50%;background:rgba(38,20,71,.75);border:3px solid #05d9e8;
+    color:#05d9e8;font:bold 24px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
   .btn.on{background:#05d9e8;color:#0d0221}
-  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:15px}#gas.on{background:#ff2a6d;color:#0d0221}
-  #brk{font-size:15px}
+  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:14px}#gas.on{background:#ff2a6d;color:#0d0221}
+  #brk,#drift{font-size:14px}
+  #drift{border-color:#f9c80e;color:#f9c80e}#drift.on{background:#f9c80e;color:#0d0221}
 </style>
 </head>
 <body>
 <div id="game"></div>
 <div id="hud">LV <b id="lv">1</b> EXP <b id="exp">0</b> ¢ <b id="coin">0</b> LAP <b id="lap">-</b>
   <button id="up">เครื่องยนต์ Lv1 (50¢)</button></div>
+<div id="warn"></div>
+<div id="state"></div>
+<canvas id="mm" width="400" height="240"></canvas>
 <div class="pad" id="l"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
-<div class="pad" id="r"><div class="btn" id="gas">GAS</div><div class="btn" id="brk">BRK</div></div>
+<div class="pad" id="r"><div class="btn" id="drift">DRIFT</div><div class="btn" id="gas">GAS</div><div class="btn" id="brk">BRK</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
 <script>
@@ -38,7 +49,7 @@ let save = { level: 1, exp: 0, coins: 0, engine: 1 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 const expNeeded = lv => 100 + lv * 50;
-const upCost = () => 50 * save.engine;
+const upCost = () => 100 * save.engine;
 const $ = id => document.getElementById(id);
 
 function refreshHud() {
@@ -50,87 +61,186 @@ $('up').addEventListener('pointerdown', () => {
 });
 
 // ---------- ปุ่มสัมผัส (รองรับหลายนิ้วพร้อมกัน) ----------
-const input = { left: false, right: false, gas: false, brk: false };
-for (const k of ['left', 'right', 'gas', 'brk']) {
+const input = { left: false, right: false, gas: false, brk: false, drift: false };
+for (const k of ['left', 'right', 'gas', 'brk', 'drift']) {
   const el = $(k);
   const set = v => e => { e.preventDefault(); input[k] = v; el.classList.toggle('on', v); };
   el.addEventListener('pointerdown', set(true));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, set(false)));
 }
 
-// ---------- เกม ----------
-const W = 1600, H = 900, ROAD = 190;              // ถนนกว้างขึ้น เห็นสนามทั้งหมดในจอ
-// สนามสร้างจากสมการโค้งต่อเนื่อง จึงไม่มีโค้งหักแหลม: โค้งนุ่ม รอบยาว ถนนไม่ทับกัน
-const SH = { a: 644.4, a3: 30.7, p3: 0.523, a2: 4.76, p2: 4.443, b: 347.7, b3: 43.7, q3: 1.906, b2: 49.75, q2: 3.123 };
-const N = 240, TRACK = [];
+// ---------- สนามยาว (สร้างจากสมการโค้งต่อเนื่อง: โค้งนุ่ม ไม่ทับกัน) ----------
+const WORLD_W = 7000, WORLD_H = 4400, W = 1600, H = 900, ROAD = 190, N = 600;
+const SH = { cx: 3500, cy: 2200, a: 2840.92, b: 1739.99,
+  ak: [17.77, 272.09, 121.65, 77.13, 100.65], pk: [2.2656, 3.6904, 0.5524, 5.4371, 3.7322],
+  bk: [400.04, 97.35, 219.86, 169.07, 84.66], qk: [2.8382, 1.2943, 1.2107, 6.032, 1.2242] };
+const TRACK = [];
 for (let i = 0; i < N; i++) {
   const u = 2 * Math.PI * i / N;
-  const A = SH.a + SH.a3 * Math.cos(3 * u + SH.p3) + SH.a2 * Math.cos(2 * u + SH.p2);
-  const B = SH.b + SH.b3 * Math.sin(3 * u + SH.q3) + SH.b2 * Math.cos(2 * u + SH.q2);
-  TRACK.push({ x: 800 + A * Math.sin(u), y: 450 + B * Math.cos(u) });
+  let A = SH.a, B = SH.b;
+  [2, 3, 4, 5, 6].forEach((k, j) => { A += SH.ak[j] * Math.cos(k * u + SH.pk[j]); B += SH.bk[j] * Math.cos(k * u + SH.qk[j]); });
+  TRACK.push({ x: SH.cx + A * Math.sin(u), y: SH.cy + B * Math.cos(u) });
+}
+const HEAD = TRACK.map((p, i) => { const q = TRACK[(i + 1) % N]; return Math.atan2(q.y - p.y, q.x - p.x); });
+const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+let TRACK_LEN = 0;
+for (let i = 0; i < N; i++) { const p = TRACK[i], q = TRACK[(i + 1) % N]; TRACK_LEN += Math.hypot(q.x - p.x, q.y - p.y); }
+const STEP = TRACK_LEN / N;
+
+// โค้งข้างหน้า: คืน {dir: -1 ซ้าย / 1 ขวา, dist} หรือ null
+function nextCorner(i) {
+  for (let j = 0; j < 45; j++) {
+    const a = (i + j) % N, d = wrapA(HEAD[(a + 14) % N] - HEAD[a]);
+    if (Math.abs(d) > 0.5) return { dir: d > 0 ? 1 : -1, dist: j * STEP };
+  }
+  return null;
 }
 
+// ---------- ฟิสิกส์รถ (แยกเป็นฟังก์ชัน: เลี้ยว, ดริฟต์, เทอร์โบหลังดริฟต์) ----------
+function stepCar(c, inp, s, engine) {
+  const top = 330 + engine * 45, topNow = top * (c.boostT > 0 ? 1.35 : 1);
+  const target = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+  c.steer += (target - c.steer) * Math.min(1, (target === 0 ? 9 : 5) * s);   // พวงมาลัยนุ่ม
+
+  let spd = Math.hypot(c.vx, c.vy);
+  const drifting = inp.drift && spd > 140;
+  const grip = Math.min(1, spd / 120) * (1 - 0.4 * spd / topNow);
+  c.rot += c.steer * 2.5 * grip * (drifting ? 1.45 : 1) * s;                    // หมุนหัวรถก่อน
+
+  const fx = Math.cos(c.rot), fy = Math.sin(c.rot), rx = -fy, ry = fx;
+  let vf = c.vx * fx + c.vy * fy, vl = c.vx * rx + c.vy * ry;
+  const accel = (230 + engine * 30) * (1 - 0.5 * spd / topNow);
+  if (inp.gas) vf += accel * s; else if (inp.brk) vf -= 360 * s; else vf -= 110 * s;
+  if (c.boostT > 0) vf += 450 * s;
+  if (drifting) vf -= 25 * s;
+  vf = Math.max(0, vf);
+  vl *= Math.exp(-(drifting ? 1.3 : 10) * s);                                   // ดริฟต์ = แรงเกาะข้างต่ำ รถไถล
+  c.vx = vf * fx + vl * rx; c.vy = vf * fy + vl * ry;
+
+  spd = Math.hypot(c.vx, c.vy);
+  if (spd > topNow) { c.vx *= topNow / spd; c.vy *= topNow / spd; }
+
+  // สะสมดริฟต์ แล้วปล่อยเป็นเทอร์โบ
+  c.sliding = drifting && Math.abs(vl) > 60;
+  if (c.sliding) c.driftT += s;
+  else if (!inp.drift) { if (c.driftT > 1) c.boostT = 0.6 + Math.min(c.driftT, 3) * 0.3; c.driftT = 0; }
+  if (c.boostT > 0) c.boostT -= s;
+
+  c.x += c.vx * s; c.y += c.vy * s;
+}
+
+// ---------- ฉากเกม ----------
 class Race extends Phaser.Scene {
   create() {
     const g = this.add.graphics();
-    g.fillStyle(0x0d0221).fillRect(0, 0, W, H);
-    g.lineStyle(1, 0x1b0d3a);
-    for (let x = 0; x <= W; x += 100) g.lineBetween(x, 0, x, H);
-    for (let y = 0; y <= H; y += 100) g.lineBetween(0, y, W, y);
-    g.lineStyle(ROAD + 14, 0x05d9e8).strokePoints(TRACK, true, true);   // ขอบนีออน
+    g.fillStyle(0x0d0221).fillRect(0, 0, WORLD_W, WORLD_H);
+    g.lineStyle(2, 0x1b0d3a);
+    for (let x = 0; x <= WORLD_W; x += 200) g.lineBetween(x, 0, x, WORLD_H);
+    for (let y = 0; y <= WORLD_H; y += 200) g.lineBetween(0, y, WORLD_W, y);
+    g.lineStyle(ROAD + 16, 0x05d9e8).strokePoints(TRACK, true, true);   // ขอบนีออน
     g.lineStyle(ROAD, 0x261447).strokePoints(TRACK, true, true);        // ผิวถนน
-    // เส้นสตาร์ท
-    const a = TRACK[0], b = TRACK[1], ang = Math.atan2(b.y - a.y, b.x - a.x);
+    const a = TRACK[0], ang = HEAD[0];
     const nx = -Math.sin(ang) * ROAD / 2, ny = Math.cos(ang) * ROAD / 2;
-    g.lineStyle(6, 0xffffff).lineBetween(a.x - nx, a.y - ny, a.x + nx, a.y + ny);
+    g.lineStyle(8, 0xffffff).lineBetween(a.x - nx, a.y - ny, a.x + nx, a.y + ny);
 
-    this.car = this.add.rectangle(a.x + Math.cos(ang) * 40, a.y + Math.sin(ang) * 40, 44, 22, 0xf9c80e)
-      .setStrokeStyle(3, 0xff2a6d).setRotation(ang);
-    this.v = 0; this.steer = 0; this.idx = 0; this.laps = 0; this.lapStart = 0; this.half = false;
-    this.kb = this.input.keyboard.createCursorKeys();
+    this.c = { x: a.x + Math.cos(ang) * 60, y: a.y + Math.sin(ang) * 60, rot: ang, vx: 0, vy: 0,
+      steer: 0, driftT: 0, boostT: 0, sliding: false };
+    this.car = this.add.rectangle(this.c.x, this.c.y, 48, 24, 0xf9c80e).setStrokeStyle(3, 0xff2a6d);
+    this.trail = [];
+    for (let i = 0; i < 24; i++) this.trail.push(this.add.circle(0, 0, 9, 0xff2a6d, 0).setDepth(-1));
+    this.ti = 0;
+
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, WORLD_W, WORLD_H); cam.setZoom(0.8);
+    cam.startFollow(this.car, true, 0.09, 0.09);
+    this.kb = this.input.keyboard.addKeys({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', drift: 'SPACE' });
+
+    this.idx = 0; this.half = false; this.started = false; this.lapStart = 0; this.mmT = 0;
+    this.mmBase = this.makeMiniBase();
     refreshHud();
   }
+
+  makeMiniBase() {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    TRACK.forEach(p => { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); });
+    const cw = 400, ch = 240, pad = 22, sc = Math.min((cw - 2 * pad) / (x1 - x0), (ch - 2 * pad) / (y1 - y0));
+    const ox = (cw - (x1 - x0) * sc) / 2 - x0 * sc, oy = (ch - (y1 - y0) * sc) / 2 - y0 * sc;
+    this.mm = { sc, ox, oy };
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const c = cv.getContext('2d');
+    c.lineWidth = 7; c.strokeStyle = '#05d9e8'; c.lineJoin = 'round'; c.beginPath();
+    TRACK.forEach((p, i) => i ? c.lineTo(p.x * sc + ox, p.y * sc + oy) : c.moveTo(p.x * sc + ox, p.y * sc + oy));
+    c.closePath(); c.stroke();
+    return cv;
+  }
+
+  drawMini() {
+    const cv = $('mm'), c = cv.getContext('2d'), { sc, ox, oy } = this.mm;
+    c.clearRect(0, 0, 400, 240); c.drawImage(this.mmBase, 0, 0);
+    c.lineWidth = 8; c.strokeStyle = '#ff2a6d'; c.beginPath();           // ช่วงถนนข้างหน้า
+    for (let j = 0; j <= 75; j++) {
+      const p = TRACK[(this.idx + j) % N];
+      j ? c.lineTo(p.x * sc + ox, p.y * sc + oy) : c.moveTo(p.x * sc + ox, p.y * sc + oy);
+    }
+    c.stroke();
+    const s0 = TRACK[0]; c.fillStyle = '#fff'; c.fillRect(s0.x * sc + ox - 3, s0.y * sc + oy - 3, 6, 6);
+    c.fillStyle = '#f9c80e'; c.beginPath(); c.arc(this.c.x * sc + ox, this.c.y * sc + oy, 7, 0, 7); c.fill();
+  }
+
   update(_, dt) {
-    const s = Math.min(dt, 50) / 1000, k = this.kb, top = 330 + save.engine * 45;
-    const gas = input.gas || k.up.isDown, brk = input.brk || k.down.isDown;
-    const target = (input.right || k.right.isDown ? 1 : 0) - (input.left || k.left.isDown ? 1 : 0);
+    const s = Math.min(dt, 50) / 1000, k = this.kb, c = this.c;
+    const inp = { gas: input.gas || k.up.isDown, brk: input.brk || k.down.isDown,
+      left: input.left || k.left.isDown, right: input.right || k.right.isDown, drift: input.drift || k.drift.isDown };
+    if (inp.gas && !this.started) { this.started = true; this.lapStart = this.time.now; }
+    stepCar(c, inp, s, save.engine);
 
-    // พวงมาลัยค่อยๆ หมุนเข้า-ออก ไม่กระชาก (ปล่อยแล้วคืนตรงเร็วกว่าตอนหมุนเข้า)
-    const rate = target === 0 ? 9 : 5;
-    this.steer += (target - this.steer) * Math.min(1, rate * s);
-
-    // เร่งแบบนุ่ม: ใกล้ความเร็วสูงสุดจะเร่งช้าลง
-    const accel = (230 + save.engine * 30) * (1 - 0.5 * this.v / top);
-    this.v += (gas ? accel : brk ? -360 : -110) * s;
-    this.v = Phaser.Math.Clamp(this.v, 0, top);
-
-    // เลี้ยวได้มากตอนความเร็วกลาง เลี้ยวน้อยลงตอนเร็วมาก (เหมือนรถจริง)
-    const grip = Math.min(1, this.v / 120) * (1 - 0.4 * this.v / top);
-    this.car.rotation += this.steer * 2.5 * grip * s;
-    this.car.x += Math.cos(this.car.rotation) * this.v * s;
-    this.car.y += Math.sin(this.car.rotation) * this.v * s;
-
-    // หาจุดบนสนามที่ใกล้รถที่สุด: ใช้ทั้งเช็คนอกถนนและนับรอบ
+    // ตำแหน่งบนสนาม: ใกล้จุดไหนของสนามที่สุด
     let best = 0, bd = Infinity;
     for (let i = 0; i < N; i++) {
-      const d = (TRACK[i].x - this.car.x) ** 2 + (TRACK[i].y - this.car.y) ** 2;
+      const d = (TRACK[i].x - c.x) ** 2 + (TRACK[i].y - c.y) ** 2;
       if (d < bd) { bd = d; best = i; }
     }
-    if (Math.sqrt(bd) > ROAD / 2) this.v = Math.max(this.v * Math.exp(-1.6 * s), Math.min(this.v, 90));  // นอกถนน = ช้าลงแต่ไม่ค้าง
-
-    const prev = this.idx; this.idx = best;
-    if (best > N * 0.4 && best < N * 0.6) this.half = true;           // ผ่านครึ่งทางแล้ว
-    if (this.half && prev > N * 0.9 && best < N * 0.1) {              // ข้ามเส้นสตาร์ทตามทิศทางถูก
-      if (this.laps > 0) this.finishLap((this.time.now - this.lapStart) / 1000);
-      this.laps++; this.lapStart = this.time.now; this.half = false;
-    } else if (this.laps === 0 && prev > N * 0.9 && best < N * 0.1) {
-      this.laps = 1; this.lapStart = this.time.now; this.half = false;
+    if (Math.sqrt(bd) > ROAD / 2) {                                     // นอกถนน = ช้าลงแต่ไม่ค้าง
+      const sp = Math.hypot(c.vx, c.vy), ns = Math.max(sp * Math.exp(-1.6 * s), Math.min(sp, 90));
+      if (sp > 0) { c.vx *= ns / sp; c.vy *= ns / sp; }
     }
-    if (this.laps > 0) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
+    const prev = this.idx; this.idx = best;
+    if (best > N * 0.4 && best < N * 0.6) this.half = true;
+    if (this.half && prev > N * 0.9 && best < N * 0.1) {
+      if (this.started) this.finishLap((this.time.now - this.lapStart) / 1000);
+      this.lapStart = this.time.now; this.half = false;
+    }
+
+    this.car.setPosition(c.x, c.y).setRotation(c.rot);
+    this.car.setFillStyle(c.boostT > 0 ? 0x05d9e8 : c.sliding ? 0xff9f1c : 0xf9c80e);
+    if (c.sliding) {                                                    // รอยไถลท้ายรถ
+      const t = this.trail[this.ti++ % this.trail.length];
+      t.setPosition(c.x - Math.cos(c.rot) * 22, c.y - Math.sin(c.rot) * 22).setAlpha(0.7);
+    }
+    this.trail.forEach(t => { if (t.alpha > 0) t.setAlpha(Math.max(0, t.alpha - 1.4 * s)); });
+
+    // กล้อง: มองนำหน้ารถ และซูมออกเมื่อเร็ว
+    const cam = this.cameras.main, sp = Math.hypot(c.vx, c.vy);
+    cam.setZoom(cam.zoom + ((0.85 - 0.3 * Math.min(1, sp / 520)) - cam.zoom) * Math.min(1, 2 * s));
+    cam.setFollowOffset(-c.vx * 0.3, -c.vy * 0.3);
+
+    if (this.started) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
+    this.mmT += dt;
+    if (this.mmT > 90) { this.mmT = 0; this.drawMini(); this.showWarn(); }
+    $('state').textContent = c.boostT > 0 ? 'BOOST!' : c.sliding ? 'DRIFT ' + c.driftT.toFixed(1) + 's' : '';
   }
+
+  showWarn() {
+    const w = $('warn'), cn = nextCorner(this.idx);
+    if (!cn) { w.textContent = ''; return; }
+    const arrow = cn.dir < 0 ? '◀ โค้งซ้าย' : 'โค้งขวา ▶';
+    w.textContent = cn.dist < STEP ? arrow : arrow + ' ' + Math.round(cn.dist / 10) * 10 + 'm';
+    w.classList.toggle('hot', cn.dist < 450);
+  }
+
   finishLap(sec) {
-    if (sec < 5) return;
-    save.exp += Math.max(20, Math.round(200 - sec * 2)); save.coins += 40;
+    if (sec < 20) return;
+    save.exp += Math.max(30, Math.round(300 - sec * 3)); save.coins += 150;
     while (save.exp >= expNeeded(save.level)) { save.exp -= expNeeded(save.level); save.level++; }
     persist(); refreshHud();
   }
