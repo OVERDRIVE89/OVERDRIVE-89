@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0221">
+<title>OVERDRIVE 89</title>
+<style>
+  *{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  html,body{margin:0;height:100%;background:#0d0221;overflow:hidden;touch-action:none;overscroll-behavior:none}
+  #game{position:fixed;inset:0}
+  #hud{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;display:flex;gap:14px;align-items:center;
+    padding:8px 12px;color:#05d9e8;font:bold 14px monospace;text-shadow:0 0 8px #05d9e8;z-index:3;pointer-events:none}
+  #hud b{color:#ff2a6d;text-shadow:0 0 8px #ff2a6d}
+  #up{margin-left:auto;pointer-events:auto;background:#261447;color:#f9c80e;border:2px solid #f9c80e;
+    border-radius:8px;padding:8px 12px;font:bold 13px monospace}
+  .pad{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0));display:flex;gap:12px;z-index:3}
+  #l{left:14px}#r{right:14px}
+  .btn{width:76px;height:76px;border-radius:50%;background:rgba(38,20,71,.75);border:3px solid #05d9e8;
+    color:#05d9e8;font:bold 26px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
+  .btn.on{background:#05d9e8;color:#0d0221}
+  #gas{border-color:#ff2a6d;color:#ff2a6d;font-size:15px}#gas.on{background:#ff2a6d;color:#0d0221}
+  #brk{font-size:15px}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">LV <b id="lv">1</b> EXP <b id="exp">0</b> ¢ <b id="coin">0</b> LAP <b id="lap">-</b>
+  <button id="up">เครื่องยนต์ Lv1 (50¢)</button></div>
+<div class="pad" id="l"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
+<div class="pad" id="r"><div class="btn" id="brk">BRK</div><div class="btn" id="gas">GAS</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+<script>
+// ---------- เซฟข้อมูลในเครื่อง (ต่อเซิร์ฟเวอร์ทีหลัง) ----------
+const KEY = 'overdrive89_save';
+let save = { level: 1, exp: 0, coins: 0, engine: 1 };
+try { Object.assign(save, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
+const expNeeded = lv => 100 + lv * 50;
+const upCost = () => 50 * save.engine;
+const $ = id => document.getElementById(id);
+
+function refreshHud() {
+  $('lv').textContent = save.level; $('exp').textContent = save.exp + '/' + expNeeded(save.level);
+  $('coin').textContent = save.coins; $('up').textContent = `เครื่องยนต์ Lv${save.engine} (${upCost()}¢)`;
+}
+$('up').addEventListener('pointerdown', () => {
+  if (save.coins >= upCost()) { save.coins -= upCost(); save.engine++; persist(); refreshHud(); }
+});
+
+// ---------- ปุ่มสัมผัส (รองรับหลายนิ้วพร้อมกัน) ----------
+const input = { left: false, right: false, gas: false, brk: false };
+for (const k of ['left', 'right', 'gas', 'brk']) {
+  const el = $(k);
+  const set = v => e => { e.preventDefault(); input[k] = v; el.classList.toggle('on', v); };
+  el.addEventListener('pointerdown', set(true));
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, set(false)));
+}
+
+// ---------- เกม ----------
+const W = 960, H = 540, CX = W / 2, CY = H / 2 + 10, RX = 360, RY = 175, ROAD = 80;
+
+class Race extends Phaser.Scene {
+  create() {
+    const g = this.add.graphics();
+    g.fillStyle(0x0d0221).fillRect(0, 0, W, H);
+    g.lineStyle(ROAD, 0x261447).strokeEllipse(CX, CY, RX * 2, RY * 2);
+    g.lineStyle(3, 0x05d9e8).strokeEllipse(CX, CY, (RX + ROAD / 2) * 2, (RY + ROAD / 2) * 2);
+    g.lineStyle(3, 0xff2a6d).strokeEllipse(CX, CY, (RX - ROAD / 2) * 2, (RY - ROAD / 2) * 2);
+    g.lineStyle(4, 0xffffff).lineBetween(CX, CY + RY - ROAD / 2, CX, CY + RY + ROAD / 2);
+    this.car = this.add.rectangle(CX + 20, CY + RY, 28, 14, 0xf9c80e).setStrokeStyle(2, 0xff2a6d);
+    this.v = 0; this.prevX = this.car.x; this.laps = 0; this.lapStart = 0; this.checkpoint = false;
+    this.kb = this.input.keyboard.createCursorKeys();
+    refreshHud();
+  }
+  update(_, dt) {
+    const s = dt / 1000, k = this.kb, top = 260 + save.engine * 30;
+    const gas = input.gas || k.up.isDown, brk = input.brk || k.down.isDown;
+    const steer = (input.right || k.right.isDown ? 1 : 0) - (input.left || k.left.isDown ? 1 : 0);
+    this.v += (gas ? 200 + save.engine * 25 : brk ? -300 : -120) * s;
+    this.v = Phaser.Math.Clamp(this.v, 0, top);
+    this.car.rotation += steer * 2.8 * s * Math.min(1, this.v / 150);
+    this.car.x += Math.cos(this.car.rotation) * this.v * s;
+    this.car.y += Math.sin(this.car.rotation) * this.v * s;
+    const d = Math.hypot((this.car.x - CX) / RX, (this.car.y - CY) / RY);
+    if (Math.abs(d - 1) * RY > ROAD / 2) this.v *= 0.96;
+    if (this.car.y < CY - RY + 20) this.checkpoint = true;
+    if (this.checkpoint && this.prevX < CX && this.car.x >= CX && this.car.y > CY) {
+      if (this.laps > 0) this.finishLap((this.time.now - this.lapStart) / 1000);
+      this.laps++; this.lapStart = this.time.now; this.checkpoint = false;
+    }
+    this.prevX = this.car.x;
+    if (this.laps > 0) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
+  }
+  finishLap(sec) {
+    if (sec < 5) return;
+    save.exp += Math.max(10, Math.round(60 - sec)); save.coins += 20;
+    while (save.exp >= expNeeded(save.level)) { save.exp -= expNeeded(save.level); save.level++; }
+    persist(); refreshHud();
+  }
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'game', width: W, height: H, backgroundColor: '#0d0221',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: Race
+});
+</script>
+</body>
+</html>
