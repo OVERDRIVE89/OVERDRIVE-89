@@ -8,324 +8,37 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>OVERDRIVE 89</title>
-<style>
-  *{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-  html,body{margin:0;height:100%;background:#0d0221;overflow:hidden;touch-action:none;overscroll-behavior:none}
-  #game{position:fixed;inset:0}
-  #hud{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;display:flex;gap:14px;align-items:center;
-    padding:8px 12px;color:#05d9e8;font:bold 14px monospace;text-shadow:0 0 8px #05d9e8;z-index:3;pointer-events:none}
-  #hud b{color:#ff2a6d;text-shadow:0 0 8px #ff2a6d}
-  #fs{pointer-events:auto;background:#261447;color:#05d9e8;border:2px solid #05d9e8;border-radius:8px;
-    padding:6px 10px;font:bold 16px monospace}
-  #start{position:fixed;inset:0;z-index:10;background:rgba(13,2,33,.93);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:10px;color:#05d9e8;font:bold 18px monospace;text-align:center}
-  #start h1{margin:0;color:#ff2a6d;text-shadow:0 0 14px #ff2a6d;font:bold 40px monospace;letter-spacing:2px}
-  #start small{color:#f9c80e;font-size:13px}
-  #up{margin-left:auto;pointer-events:auto;background:#261447;color:#f9c80e;border:2px solid #f9c80e;
-    border-radius:8px;padding:8px 12px;font:bold 13px monospace}
-  #warn{position:fixed;top:calc(46px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
-    font:bold 20px monospace;color:#f9c80e;text-shadow:0 0 10px #f9c80e;pointer-events:none;white-space:nowrap}
-  #warn.hot{color:#ff2a6d;text-shadow:0 0 12px #ff2a6d}
-  #state{position:fixed;top:calc(78px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
-    font:bold 16px monospace;color:#05d9e8;text-shadow:0 0 10px #05d9e8;pointer-events:none}
-  #mm{position:fixed;left:12px;top:calc(40px + env(safe-area-inset-top,0));width:150px;height:90px;z-index:3;
-    border:2px solid rgba(5,217,232,.6);border-radius:10px;background:rgba(13,2,33,.55);pointer-events:none}
-  .pad{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0));display:flex;gap:8px;z-index:3}
-  #l{left:max(12px,env(safe-area-inset-left,0))}#r{right:max(12px,env(safe-area-inset-right,0))}
-  .btn{width:54px;height:54px;border-radius:50%;background:rgba(38,20,71,.4);border:2px solid #05d9e8;
-    color:#05d9e8;font:bold 18px monospace;display:flex;align-items:center;justify-content:center;touch-action:none}
-  .btn.on{background:#05d9e8;color:#0d0221}
-  #r{width:270px;height:170px;display:grid;grid-template-columns:2fr 3fr;grid-template-rows:1fr 2fr;gap:0;touch-action:none}
-  .zone{border:none;border-radius:0;background:transparent;color:transparent;font-size:0;pointer-events:none}
-  #l{width:270px;height:170px;display:grid;grid-template-columns:1fr 1fr;gap:0;touch-action:none}
-  #left,#right{width:auto;height:auto;border:none;border-radius:0;background:transparent;color:transparent;font-size:0;pointer-events:none}
-  #left.on,#right.on{background:rgba(5,217,232,.12);color:transparent}
-  .zone,#left,#right{box-sizing:border-box;border:1px solid rgba(5,217,232,.16);border-radius:10px}
-  #drift{border-color:rgba(249,200,14,.18)}
-  #gas{border-color:rgba(255,42,109,.18)}
-  #brk{grid-column:1 / span 2}
-  #brk.on{background:rgba(5,217,232,.12)}
-  #drift.on{background:rgba(249,200,14,.12)}
-  #gas.on{background:rgba(255,42,109,.12)}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="game"></div>
+
+<!-- เมนูก่อนเข้าเกม (ลอจิกอยู่ใน menu.js) -->
+<div id="menu">
+  <h1 id="menu-title">OVERDRIVE 89</h1>
+  <div class="sub">NEON RACING ONLINE</div>
+  <button class="mbtn" id="btn-trial">ทดลองเล่น</button>
+  <button class="mbtn" id="btn-email">เชื่อมอีเมล</button>
+  <div id="email-box">
+    <input id="email-input" type="email" inputmode="email" autocomplete="email" placeholder="อีเมลของคุณ">
+    <button class="mbtn" id="email-send">ส่งลิงก์ยืนยัน</button>
+    <div id="email-msg"></div>
+    <button class="linkbtn" id="email-cancel">ยกเลิก</button>
+  </div>
+  <div id="menu-status"></div>
+  <button class="linkbtn" id="btn-logout" style="display:none">ออกจากระบบ</button>
+</div>
+
+<!-- หน้าจอระหว่างเล่น (ลอจิกอยู่ใน ui.js / input.js) -->
 <div id="hud">LV <b id="lv">1</b> EXP <b id="exp">0</b> ¢ <b id="coin">0</b> LAP <b id="lap">-</b>
-  <button id="up">เครื่องยนต์ Lv1 (50¢)</button><button id="fs">⛶</button></div>
-<div id="start"><h1>OVERDRIVE 89</h1><div>แตะหน้าจอเพื่อเริ่ม (เต็มจอแนวนอน)</div><small>iPhone: กดแชร์ > เพิ่มไปยังหน้าจอโฮม เพื่อเล่นเต็มจอ</small></div>
+  <button id="up">เครื่องยนต์</button><button id="fs">⛶</button></div>
 <div id="warn"></div>
 <div id="state"></div>
 <canvas id="mm" width="400" height="240"></canvas>
-<div class="pad" id="l"><div class="btn" id="left">◀</div><div class="btn" id="right">▶</div></div>
-<div class="pad" id="r"><div class="zone" id="brk">BRAKE ▲</div><div class="zone" id="drift">◀ DRIFT</div><div class="zone" id="gas">GAS</div></div>
+<div class="pad" id="l"><div id="left"></div><div id="right"></div></div>
+<div class="pad" id="r"><div class="zone" id="brk"></div><div class="zone" id="drift"></div><div class="zone" id="gas"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
-<script>
-// ---------- เซฟข้อมูลในเครื่อง (ต่อเซิร์ฟเวอร์ทีหลัง) ----------
-const KEY = 'overdrive89_save';
-let save = { level: 1, exp: 0, coins: 0, engine: 1 };
-try { Object.assign(save, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
-const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
-const expNeeded = lv => 100 + lv * 50;
-const upCost = () => 100 * save.engine;
-const $ = id => document.getElementById(id);
-
-function refreshHud() {
-  $('lv').textContent = save.level; $('exp').textContent = save.exp + '/' + expNeeded(save.level);
-  $('coin').textContent = save.coins; $('up').textContent = `เครื่องยนต์ Lv${save.engine} (${upCost()}¢)`;
-}
-$('up').addEventListener('pointerdown', () => {
-  if (save.coins >= upCost()) { save.coins -= upCost(); save.engine++; persist(); refreshHud(); }
-});
-
-// ---------- เต็มจอ + ล็อกแนวนอน (ต้องเกิดจากการแตะของผู้เล่น) ----------
-function goFullscreen() {
-  const el = document.documentElement;
-  const req = el.requestFullscreen || el.webkitRequestFullscreen;
-  try {
-    const r = req && req.call(el, { navigationUI: 'hide' });
-    const lock = () => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} };
-    if (r && r.then) r.then(lock).catch(() => {}); else lock();
-  } catch (_) {}
-}
-$('start').addEventListener('pointerdown', e => { e.preventDefault(); goFullscreen(); $('start').style.display = 'none'; });
-$('fs').addEventListener('pointerdown', e => {
-  e.preventDefault();
-  if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
-  else goFullscreen();
-});
-
-// ---------- ปุ่มสัมผัส (รองรับหลายนิ้วพร้อมกัน) ----------
-const input = { left: false, right: false, gas: false, brk: false, drift: false };
-// แผ่นซ้าย: พื้นที่เลี้ยวใหญ่และโปร่งใส (ไม่เห็นปุ่ม) แตะครึ่งซ้าย = เลี้ยวซ้าย / ครึ่งขวา = เลี้ยวขวา เลื่อนนิ้วข้ามกันได้
-const lpad = $('l'), lptrs = new Map();
-function applyL() {
-  const z = [...lptrs.values()];
-  input.left = z.includes('left') && !z.includes('right');
-  input.right = z.includes('right') && !z.includes('left');
-  $('left').classList.toggle('on', z.includes('left'));
-  $('right').classList.toggle('on', z.includes('right'));
-}
-const sideOf = e => { const r = lpad.getBoundingClientRect(); return (e.clientX - r.left) / r.width < 0.5 ? 'left' : 'right'; };
-lpad.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  try { lpad.setPointerCapture(e.pointerId); } catch (_) {}
-  lptrs.set(e.pointerId, sideOf(e)); applyL();
-});
-lpad.addEventListener('pointermove', e => { if (lptrs.has(e.pointerId)) { lptrs.set(e.pointerId, sideOf(e)); applyL(); } });
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t =>
-  lpad.addEventListener(t, e => { lptrs.delete(e.pointerId); applyL(); }));
-
-// แผ่นขวา: วางนิ้วที่ GAS ค้างไว้ แล้วเลื่อนนิ้วไปซ้าย = ดริฟต์ (เร่งต่อ) / เลื่อนขึ้น = เบรก
-// รองรับนิ้วที่สองด้วย
-const pad = $('r'), ptrs = new Map();
-function zoneOf(e) {
-  const r = pad.getBoundingClientRect();
-  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-  if (y < 0.34) return 'brk';
-  return x < 0.4 ? 'drift' : 'gas';
-}
-function applyPad() {
-  const z = [...ptrs.values()];
-  input.brk = z.includes('brk');
-  input.drift = z.includes('drift') && !input.brk;
-  input.gas = (z.includes('gas') || z.includes('drift')) && !input.brk;
-  $('brk').classList.toggle('on', input.brk);
-  $('drift').classList.toggle('on', input.drift);
-  $('gas').classList.toggle('on', input.gas);
-}
-pad.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  try { pad.setPointerCapture(e.pointerId); } catch (_) {}
-  ptrs.set(e.pointerId, zoneOf(e)); applyPad();
-});
-pad.addEventListener('pointermove', e => { if (ptrs.has(e.pointerId)) { ptrs.set(e.pointerId, zoneOf(e)); applyPad(); } });
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t =>
-  pad.addEventListener(t, e => { ptrs.delete(e.pointerId); applyPad(); }));
-
-// ---------- สนามยาว (สร้างจากสมการโค้งต่อเนื่อง: โค้งนุ่ม ไม่ทับกัน) ----------
-const WORLD_W = 7000, WORLD_H = 4400, W = 1600, H = 900, ROAD = 190, N = 600;
-const SH = { cx: 3500, cy: 2200, a: 2840.92, b: 1739.99,
-  ak: [17.77, 272.09, 121.65, 77.13, 100.65], pk: [2.2656, 3.6904, 0.5524, 5.4371, 3.7322],
-  bk: [400.04, 97.35, 219.86, 169.07, 84.66], qk: [2.8382, 1.2943, 1.2107, 6.032, 1.2242] };
-const TRACK = [];
-for (let i = 0; i < N; i++) {
-  const u = 2 * Math.PI * i / N;
-  let A = SH.a, B = SH.b;
-  [2, 3, 4, 5, 6].forEach((k, j) => { A += SH.ak[j] * Math.cos(k * u + SH.pk[j]); B += SH.bk[j] * Math.cos(k * u + SH.qk[j]); });
-  TRACK.push({ x: SH.cx + A * Math.sin(u), y: SH.cy + B * Math.cos(u) });
-}
-const HEAD = TRACK.map((p, i) => { const q = TRACK[(i + 1) % N]; return Math.atan2(q.y - p.y, q.x - p.x); });
-const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-let TRACK_LEN = 0;
-for (let i = 0; i < N; i++) { const p = TRACK[i], q = TRACK[(i + 1) % N]; TRACK_LEN += Math.hypot(q.x - p.x, q.y - p.y); }
-const STEP = TRACK_LEN / N;
-
-// โค้งข้างหน้า: คืน {dir: -1 ซ้าย / 1 ขวา, dist} หรือ null
-function nextCorner(i) {
-  for (let j = 0; j < 45; j++) {
-    const a = (i + j) % N, d = wrapA(HEAD[(a + 14) % N] - HEAD[a]);
-    if (Math.abs(d) > 0.5) return { dir: d > 0 ? 1 : -1, dist: j * STEP };
-  }
-  return null;
-}
-
-// ---------- ฟิสิกส์รถ (แยกเป็นฟังก์ชัน: เลี้ยว, ดริฟต์, เทอร์โบหลังดริฟต์) ----------
-function stepCar(c, inp, s, engine) {
-  const top = 330 + engine * 45, topNow = top * (c.boostT > 0 ? 1.35 : 1);
-  const target = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-  c.steer += (target - c.steer) * Math.min(1, (target === 0 ? 9 : 5) * s);   // พวงมาลัยนุ่ม
-
-  let spd = Math.hypot(c.vx, c.vy);
-  const drifting = inp.drift && spd > 140;
-  const grip = Math.min(1, spd / 120) * (1 - 0.4 * spd / topNow);
-  c.rot += c.steer * 2.5 * grip * (drifting ? 1.45 : 1) * s;                    // หมุนหัวรถก่อน
-
-  const fx = Math.cos(c.rot), fy = Math.sin(c.rot), rx = -fy, ry = fx;
-  let vf = c.vx * fx + c.vy * fy, vl = c.vx * rx + c.vy * ry;
-  const accel = (230 + engine * 30) * (1 - 0.5 * spd / topNow);
-  if (inp.gas) vf += accel * s; else if (inp.brk) vf -= 360 * s; else vf -= 110 * s;
-  if (c.boostT > 0) vf += 450 * s;
-  if (drifting) vf -= 25 * s;
-  vf = Math.max(0, vf);
-  vl *= Math.exp(-(drifting ? 1.3 : 10) * s);                                   // ดริฟต์ = แรงเกาะข้างต่ำ รถไถล
-  c.vx = vf * fx + vl * rx; c.vy = vf * fy + vl * ry;
-
-  spd = Math.hypot(c.vx, c.vy);
-  if (spd > topNow) { c.vx *= topNow / spd; c.vy *= topNow / spd; }
-
-  // สะสมดริฟต์ แล้วปล่อยเป็นเทอร์โบ
-  c.sliding = drifting && Math.abs(vl) > 60;
-  if (c.sliding) c.driftT += s;
-  else if (!inp.drift) { if (c.driftT > 1) c.boostT = 0.6 + Math.min(c.driftT, 3) * 0.3; c.driftT = 0; }
-  if (c.boostT > 0) c.boostT -= s;
-
-  c.x += c.vx * s; c.y += c.vy * s;
-}
-
-// ---------- ฉากเกม ----------
-class Race extends Phaser.Scene {
-  create() {
-    const g = this.add.graphics();
-    g.fillStyle(0x0d0221).fillRect(0, 0, WORLD_W, WORLD_H);
-    g.lineStyle(2, 0x1b0d3a);
-    for (let x = 0; x <= WORLD_W; x += 200) g.lineBetween(x, 0, x, WORLD_H);
-    for (let y = 0; y <= WORLD_H; y += 200) g.lineBetween(0, y, WORLD_W, y);
-    g.lineStyle(ROAD + 16, 0x05d9e8).strokePoints(TRACK, true, true);   // ขอบนีออน
-    g.lineStyle(ROAD, 0x261447).strokePoints(TRACK, true, true);        // ผิวถนน
-    const a = TRACK[0], ang = HEAD[0];
-    const nx = -Math.sin(ang) * ROAD / 2, ny = Math.cos(ang) * ROAD / 2;
-    g.lineStyle(8, 0xffffff).lineBetween(a.x - nx, a.y - ny, a.x + nx, a.y + ny);
-
-    this.c = { x: a.x + Math.cos(ang) * 60, y: a.y + Math.sin(ang) * 60, rot: ang, vx: 0, vy: 0,
-      steer: 0, driftT: 0, boostT: 0, sliding: false };
-    this.car = this.add.rectangle(this.c.x, this.c.y, 48, 24, 0xf9c80e).setStrokeStyle(3, 0xff2a6d);
-    this.trail = [];
-    for (let i = 0; i < 24; i++) this.trail.push(this.add.circle(0, 0, 9, 0xff2a6d, 0).setDepth(-1));
-    this.ti = 0;
-
-    const cam = this.cameras.main;
-    cam.setBounds(0, 0, WORLD_W, WORLD_H); cam.setZoom(0.8);
-    cam.startFollow(this.car, true, 0.09, 0.09);
-    this.kb = this.input.keyboard.addKeys({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', drift: 'SPACE' });
-
-    this.idx = 0; this.half = false; this.started = false; this.lapStart = 0; this.mmT = 0;
-    this.mmBase = this.makeMiniBase();
-    refreshHud();
-  }
-
-  makeMiniBase() {
-    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-    TRACK.forEach(p => { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); });
-    const cw = 400, ch = 240, pad = 22, sc = Math.min((cw - 2 * pad) / (x1 - x0), (ch - 2 * pad) / (y1 - y0));
-    const ox = (cw - (x1 - x0) * sc) / 2 - x0 * sc, oy = (ch - (y1 - y0) * sc) / 2 - y0 * sc;
-    this.mm = { sc, ox, oy };
-    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-    const c = cv.getContext('2d');
-    c.lineWidth = 7; c.strokeStyle = '#05d9e8'; c.lineJoin = 'round'; c.beginPath();
-    TRACK.forEach((p, i) => i ? c.lineTo(p.x * sc + ox, p.y * sc + oy) : c.moveTo(p.x * sc + ox, p.y * sc + oy));
-    c.closePath(); c.stroke();
-    return cv;
-  }
-
-  drawMini() {
-    const cv = $('mm'), c = cv.getContext('2d'), { sc, ox, oy } = this.mm;
-    c.clearRect(0, 0, 400, 240); c.drawImage(this.mmBase, 0, 0);
-    c.lineWidth = 8; c.strokeStyle = '#ff2a6d'; c.beginPath();           // ช่วงถนนข้างหน้า
-    for (let j = 0; j <= 75; j++) {
-      const p = TRACK[(this.idx + j) % N];
-      j ? c.lineTo(p.x * sc + ox, p.y * sc + oy) : c.moveTo(p.x * sc + ox, p.y * sc + oy);
-    }
-    c.stroke();
-    const s0 = TRACK[0]; c.fillStyle = '#fff'; c.fillRect(s0.x * sc + ox - 3, s0.y * sc + oy - 3, 6, 6);
-    c.fillStyle = '#f9c80e'; c.beginPath(); c.arc(this.c.x * sc + ox, this.c.y * sc + oy, 7, 0, 7); c.fill();
-  }
-
-  update(_, dt) {
-    const s = Math.min(dt, 50) / 1000, k = this.kb, c = this.c;
-    const inp = { gas: input.gas || k.up.isDown, brk: input.brk || k.down.isDown,
-      left: input.left || k.left.isDown, right: input.right || k.right.isDown, drift: input.drift || k.drift.isDown };
-    if (inp.gas && !this.started) { this.started = true; this.lapStart = this.time.now; }
-    stepCar(c, inp, s, save.engine);
-
-    // ตำแหน่งบนสนาม: ใกล้จุดไหนของสนามที่สุด
-    let best = 0, bd = Infinity;
-    for (let i = 0; i < N; i++) {
-      const d = (TRACK[i].x - c.x) ** 2 + (TRACK[i].y - c.y) ** 2;
-      if (d < bd) { bd = d; best = i; }
-    }
-    if (Math.sqrt(bd) > ROAD / 2) {                                     // นอกถนน = ช้าลงแต่ไม่ค้าง
-      const sp = Math.hypot(c.vx, c.vy), ns = Math.max(sp * Math.exp(-1.6 * s), Math.min(sp, 90));
-      if (sp > 0) { c.vx *= ns / sp; c.vy *= ns / sp; }
-    }
-    const prev = this.idx; this.idx = best;
-    if (best > N * 0.4 && best < N * 0.6) this.half = true;
-    if (this.half && prev > N * 0.9 && best < N * 0.1) {
-      if (this.started) this.finishLap((this.time.now - this.lapStart) / 1000);
-      this.lapStart = this.time.now; this.half = false;
-    }
-
-    this.car.setPosition(c.x, c.y).setRotation(c.rot);
-    this.car.setFillStyle(c.boostT > 0 ? 0x05d9e8 : c.sliding ? 0xff9f1c : 0xf9c80e);
-    if (c.sliding) {                                                    // รอยไถลท้ายรถ
-      const t = this.trail[this.ti++ % this.trail.length];
-      t.setPosition(c.x - Math.cos(c.rot) * 22, c.y - Math.sin(c.rot) * 22).setAlpha(0.7);
-    }
-    this.trail.forEach(t => { if (t.alpha > 0) t.setAlpha(Math.max(0, t.alpha - 1.4 * s)); });
-
-    // กล้อง: มองนำหน้ารถ และซูมออกเมื่อเร็ว
-    const cam = this.cameras.main, sp = Math.hypot(c.vx, c.vy);
-    cam.setZoom(cam.zoom + ((0.85 - 0.3 * Math.min(1, sp / 520)) - cam.zoom) * Math.min(1, 2 * s));
-    cam.setFollowOffset(-c.vx * 0.3, -c.vy * 0.3);
-
-    if (this.started) $('lap').textContent = ((this.time.now - this.lapStart) / 1000).toFixed(1) + 's';
-    this.mmT += dt;
-    if (this.mmT > 90) { this.mmT = 0; this.drawMini(); this.showWarn(); }
-    $('state').textContent = c.boostT > 0 ? 'BOOST!' : c.sliding ? 'DRIFT ' + c.driftT.toFixed(1) + 's' : '';
-  }
-
-  showWarn() {
-    const w = $('warn'), cn = nextCorner(this.idx);
-    if (!cn) { w.textContent = ''; return; }
-    const arrow = cn.dir < 0 ? '◀ โค้งซ้าย' : 'โค้งขวา ▶';
-    w.textContent = cn.dist < STEP ? arrow : arrow + ' ' + Math.round(cn.dist / 10) * 10 + 'm';
-    w.classList.toggle('hot', cn.dist < 450);
-  }
-
-  finishLap(sec) {
-    if (sec < 20) return;
-    save.exp += Math.max(30, Math.round(300 - sec * 3)); save.coins += 150;
-    while (save.exp >= expNeeded(save.level)) { save.exp -= expNeeded(save.level); save.level++; }
-    persist(); refreshHud();
-  }
-}
-
-new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: W, height: H, backgroundColor: '#0d0221',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: Race
-});
-</script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
