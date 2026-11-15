@@ -1,0 +1,59 @@
+/* ============================================================
+   style.css : หน้าตาทั้งหมด (HUD, ปุ่มโปร่งใส, เมนูเริ่มเกม)
+   ============================================================ */
+*{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+input{user-select:text;-webkit-user-select:text}
+html,body{margin:0;height:100%;background:#0d0221;overflow:hidden;touch-action:none;overscroll-behavior:none}
+#game{position:fixed;inset:0}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;display:flex;gap:14px;align-items:center;
+  padding:8px 12px;color:#05d9e8;font:bold 14px monospace;text-shadow:0 0 8px #05d9e8;z-index:3;pointer-events:none}
+#hud b{color:#ff2a6d;text-shadow:0 0 8px #ff2a6d}
+#hud button{pointer-events:auto;background:#261447;border:2px solid #05d9e8;border-radius:8px;color:#05d9e8;
+  padding:6px 10px;font:bold 16px monospace}
+#up{margin-left:auto;color:#f9c80e!important;border-color:#f9c80e!important;font-size:13px!important;padding:8px 12px!important}
+#warn{position:fixed;top:calc(46px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
+  font:bold 20px monospace;color:#f9c80e;text-shadow:0 0 10px #f9c80e;pointer-events:none;white-space:nowrap}
+#warn.hot{color:#ff2a6d;text-shadow:0 0 12px #ff2a6d}
+#state{position:fixed;top:calc(78px + env(safe-area-inset-top,0));left:50%;transform:translateX(-50%);z-index:3;
+  font:bold 16px monospace;color:#05d9e8;text-shadow:0 0 10px #05d9e8;pointer-events:none}
+#mm{position:fixed;left:12px;top:calc(40px + env(safe-area-inset-top,0));width:130px;height:78px;z-index:3;
+  border:2px solid rgba(5,217,232,.6);border-radius:10px;background:rgba(13,2,33,.55);pointer-events:none}
+
+/* ---------- ปุ่มสัมผัสโปร่งใส ---------- */
+.pad{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0));z-index:3;width:270px;height:170px;
+  display:grid;gap:0;touch-action:none}
+#l{left:max(12px,env(safe-area-inset-left,0));grid-template-columns:1fr 1fr}
+#r{right:max(12px,env(safe-area-inset-right,0));grid-template-columns:2fr 3fr;grid-template-rows:1fr 2fr}
+.zone,#left,#right{box-sizing:border-box;border:1px solid rgba(5,217,232,.16);border-radius:10px;
+  background:transparent;color:transparent;font-size:0;pointer-events:none}
+#drift{border-color:rgba(249,200,14,.18)}
+#gas{border-color:rgba(255,42,109,.18)}
+#brk{grid-column:1 / span 2}
+#left.on,#right.on,#brk.on{background:rgba(5,217,232,.12)}
+#drift.on{background:rgba(249,200,14,.12)}
+#gas.on{background:rgba(255,42,109,.12)}
+
+/* ---------- เมนูเริ่มเกม ---------- */
+#menu{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  background:radial-gradient(ellipse at 50% 120%,#3b0a5c 0%,#0d0221 60%);color:#05d9e8;font:bold 16px monospace;
+  text-align:center;padding:12px;box-sizing:border-box;overflow-y:auto;touch-action:pan-y}
+#menu.hidden{display:none}
+#menu h1{margin:0;color:#ff2a6d;text-shadow:0 0 18px #ff2a6d;font:bold 44px monospace;letter-spacing:3px}
+#menu .sub{color:#f9c80e;font-size:13px;margin-bottom:6px}
+.mbtn{width:min(70vw,300px);padding:13px 10px;font:bold 18px monospace;border-radius:12px;background:rgba(38,20,71,.7);
+  color:#05d9e8;border:2px solid #05d9e8}
+#btn-trial{border-color:#ff2a6d;color:#ff2a6d}
+.mbtn:active{filter:brightness(1.5)}
+#menu-status{font-size:12px;color:#8fe9f1;min-height:16px;word-break:break-all}
+#email-box{display:none;flex-direction:column;gap:8px;align-items:center;width:min(80vw,320px)}
+#email-box.open{display:flex}
+#email-box input{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:2px solid #05d9e8;background:#150433;
+  color:#fff;font:16px monospace}
+#email-msg{font-size:12px;color:#f9c80e;min-height:16px}
+.linkbtn{background:none;border:none;color:#8fe9f1;font:12px monospace;text-decoration:underline}
+
+/* ก่อนกดเริ่มเล่น ซ่อนส่วนของเกมทั้งหมด */
+body:not(.playing) #hud,body:not(.playing) #warn,body:not(.playing) #state,body:not(.playing) #mm,
+body:not(.playing) #l,body:not(.playing) #r{display:none !important}
